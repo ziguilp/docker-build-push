@@ -120,7 +120,9 @@ const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => 
             core.info(`Failed to Logging into Docker registry ${registry}: ${error.message}`);
             if (maxRetryAttempts > 0) {
                 core.info(`Retry to Logging into Docker registry ${registry}...`);
-                login(username, password, registry, skipPush, maxRetryAttempts - 1)
+                login(username, password, registry, skipPush, maxRetryAttempts - 1);
+            } else {
+                core.setFailed(error);
             }
         }
     } else {
@@ -143,6 +145,8 @@ const push = (imageName, tags, skipPush, maxRetryAttempts = 1) => {
         if (maxRetryAttempts > 0) {
             core.info(`Retry to Pushing tags ${tags} for Docker image ${imageName}`);
             push(imageName, tags, skipPush, maxRetryAttempts - 1)
+        } else {
+            core.setFailed(error);
         }
     }
 };
