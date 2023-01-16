@@ -26,7 +26,7 @@ steps:
   - uses: actions/checkout@v2
     name: Check out code
 
-  - uses: mr-smithers-excellent/docker-build-push@v5
+  - uses: ziguilp/docker-build-push@v1.2
     name: Build & push Docker image
     with:
       image: repo/image
@@ -36,6 +36,7 @@ steps:
       username: ${{ secrets.DOCKER_USERNAME }}
       password: ${{ secrets.DOCKER_PASSWORD }}
       maxRetryAttempts: 3
+      retryDelaySeconds: 5
 ```
 
 ## Inputs
@@ -81,7 +82,7 @@ There is a distinction between secrets at the [repository](https://docs.github.c
 - Modify sample below and include in your workflow `.github/workflows/*.yml` file
 
 ```yaml
-uses: mr-smithers-excellent/docker-build-push@v5
+uses: ziguilp/docker-build-push@v1.2
 with:
   image: docker-hub-repo/image-name
   registry: docker.io
@@ -98,7 +99,7 @@ with:
 - Ensure you set the username to `_json_key`
 
 ```yaml
-uses: mr-smithers-excellent/docker-build-push@v5
+uses: ziguilp/docker-build-push@v1.2
 with:
   image: gcp-project/image-name
   registry: gcr.io
@@ -115,7 +116,7 @@ with:
 - Modify sample below and include in your workflow `.github/workflows/*.yml` file
 
 ```yaml
-uses: mr-smithers-excellent/docker-build-push@v5
+uses: ziguilp/docker-build-push@v1.2
 with:
   image: image-name
   registry: [aws-account-number].dkr.ecr.[region].amazonaws.com
@@ -136,7 +137,7 @@ env:
 #### New ghcr.io
 
 ```yaml
-uses: mr-smithers-excellent/docker-build-push@v5
+uses: ziguilp/docker-build-push@v1.2
 with:
   image: image-name
   registry: ghcr.io
@@ -148,7 +149,7 @@ with:
 #### Legacy docker.pkg.github.com
 
 ```yaml
-uses: mr-smithers-excellent/docker-build-push@v5
+uses: ziguilp/docker-build-push@v1.2
 with:
   image: github-repo/image-name
   registry: docker.pkg.github.com

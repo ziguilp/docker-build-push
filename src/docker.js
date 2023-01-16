@@ -3,7 +3,7 @@ const core = require('@actions/core');
 const fs = require('fs');
 const { context } = require('@actions/github');
 const { isGitHubTag, isBranch } = require('./github');
-const { timestamp, cpOptions } = require('./utils');
+const { timestamp, cpOptions, sleep } = require('./utils');
 
 const GITHUB_REGISTRY_URLS = ['docker.pkg.github.com', 'ghcr.io'];
 
@@ -83,7 +83,7 @@ const createBuildCommand = (imageName, dockerfile, buildOpts) => {
 };
 
 // Perform 'docker build' command
-const build = (imageName, dockerfile, buildOpts) => {
+const build = async (imageName, dockerfile, buildOpts) => {
     if (!fs.existsSync(dockerfile)) {
         core.setFailed(`Dockerfile does not exist in location ${dockerfile}`);
     }
@@ -97,7 +97,7 @@ const isEcr = registry => registry && registry.includes('amazonaws');
 const getRegion = registry => registry.substring(registry.indexOf('ecr.') + 4, registry.indexOf('.amazonaws'));
 
 // Log in to provided Docker registry
-const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => {
+const login = async (username, password, registry, skipPush, maxRetryAttempts = 1, retryDelaySeconds = 1) => {
     if (skipPush) {
         core.info('Input skipPush is set to true, skipping Docker log in step...');
         return;
@@ -120,7 +120,8 @@ const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => 
             core.info(`Failed to Logging into Docker registry ${registry}: ${error.message}`);
             if (maxRetryAttempts > 0) {
                 core.info(`Retry to Logging into Docker registry ${registry}...`);
-                login(username, password, registry, skipPush, maxRetryAttempts - 1);
+                await sleep(retryDelaySeconds * 1000);
+                await login(username, password, registry, skipPush, maxRetryAttempts - 1, retryDelaySeconds);
             } else {
                 core.setFailed(error);
             }
@@ -131,7 +132,7 @@ const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => 
 };
 
 // Push Docker image & all tags
-const push = (imageName, tags, skipPush, maxRetryAttempts = 1) => {
+const push = async (imageName, tags, skipPush, maxRetryAttempts = 1, retryDelaySeconds = 1) => {
     if (skipPush) {
         core.info('Input skipPush is set to true, skipping Docker push step...');
         return;
@@ -144,7 +145,8 @@ const push = (imageName, tags, skipPush, maxRetryAttempts = 1) => {
         core.info(`Failed to Pushing tags ${tags} for Docker image ${imageName}...: ${error.message}`);
         if (maxRetryAttempts > 0) {
             core.info(`Retry to Pushing tags ${tags} for Docker image ${imageName}`);
-            push(imageName, tags, skipPush, maxRetryAttempts - 1)
+            await sleep(retryDelaySeconds * 1000);
+            await push(imageName, tags, skipPush, maxRetryAttempts - 1, retryDelaySeconds)
         } else {
             core.setFailed(error);
         }
