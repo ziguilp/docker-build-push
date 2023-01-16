@@ -10053,58 +10053,69 @@ function wrappy (fn, cb) {
 /***/ 2086:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
+/*
+ * @Author        : turbo 664120459@qq.com
+ * @Date          : 2023-01-16 09:01:56
+ * @LastEditors   : turbo 664120459@qq.com
+ * @LastEditTime  : 2023-01-16 09:14:37
+ * @FilePath      : /docker-build-push/src/docker-build-push.js
+ * @Description   : forked from mr-smithers-excellent/docker-build-push
+ * 
+ * Copyright (c) 2023 by turbo 664120459@qq.com, All Rights Reserved. 
+ */
 const core = __nccwpck_require__(2186);
 const docker = __nccwpck_require__(2439);
 const github = __nccwpck_require__(8396);
 const { parseArray } = __nccwpck_require__(1608);
 
 const buildOpts = {
-  tags: undefined,
-  buildArgs: undefined,
-  labels: undefined,
-  target: undefined,
-  buildDir: undefined,
-  enableBuildKit: false,
-  platform: undefined,
-  skipPush: false
+    tags: undefined,
+    buildArgs: undefined,
+    labels: undefined,
+    target: undefined,
+    buildDir: undefined,
+    enableBuildKit: false,
+    platform: undefined,
+    skipPush: false
 };
 
 const run = () => {
-  try {
-    // Capture action inputs
-    const image = core.getInput('image', { required: true });
-    const registry = core.getInput('registry', { required: true });
-    const username = core.getInput('username');
-    const password = core.getInput('password');
-    const dockerfile = core.getInput('dockerfile');
-    const githubOwner = core.getInput('githubOrg') || github.getDefaultOwner();
-    const addLatest = core.getInput('addLatest') === 'true';
-    const addTimestamp = core.getInput('addTimestamp') === 'true';
-    buildOpts.tags = parseArray(core.getInput('tags')) || docker.createTags(addLatest, addTimestamp);
-    buildOpts.buildArgs = parseArray(core.getInput('buildArgs'));
-    buildOpts.labels = parseArray(core.getInput('labels'));
-    buildOpts.target = core.getInput('target');
-    buildOpts.buildDir = core.getInput('directory') || '.';
-    buildOpts.enableBuildKit = core.getInput('enableBuildKit') === 'true';
-    buildOpts.platform = core.getInput('platform');
-    buildOpts.skipPush = core.getInput('pushImage') === 'false';
+    try {
+        // Capture action inputs
+        const image = core.getInput('image', { required: true });
+        const registry = core.getInput('registry', { required: true });
+        const username = core.getInput('username');
+        const password = core.getInput('password');
+        const dockerfile = core.getInput('dockerfile');
+        const githubOwner = core.getInput('githubOrg') || github.getDefaultOwner();
+        const addLatest = core.getInput('addLatest') === 'true';
+        const addTimestamp = core.getInput('addTimestamp') === 'true';
+        const maxRetryAttempts = core.getInput('maxRetryAttempts') || 0;
+        buildOpts.tags = parseArray(core.getInput('tags')) || docker.createTags(addLatest, addTimestamp);
+        buildOpts.buildArgs = parseArray(core.getInput('buildArgs'));
+        buildOpts.labels = parseArray(core.getInput('labels'));
+        buildOpts.target = core.getInput('target');
+        buildOpts.buildDir = core.getInput('directory') || '.';
+        buildOpts.enableBuildKit = core.getInput('enableBuildKit') === 'true';
+        buildOpts.platform = core.getInput('platform');
+        buildOpts.skipPush = core.getInput('pushImage') === 'false';
 
-    // Create the Docker image name
-    const imageFullName = docker.createFullImageName(registry, image, githubOwner);
-    core.info(`Docker image name used for this build: ${imageFullName}`);
+        // Create the Docker image name
+        const imageFullName = docker.createFullImageName(registry, image, githubOwner);
+        core.info(`Docker image name used for this build: ${imageFullName}`);
 
-    // Log in, build & push the Docker image
-    docker.login(username, password, registry, buildOpts.skipPush);
-    docker.build(imageFullName, dockerfile, buildOpts);
-    docker.push(imageFullName, buildOpts.tags, buildOpts.skipPush);
+        // Log in, build & push the Docker image
+        docker.login(username, password, registry, buildOpts.skipPush, maxRetryAttempts);
+        docker.build(imageFullName, dockerfile, buildOpts);
+        docker.push(imageFullName, buildOpts.tags, buildOpts.skipPush, maxRetryAttempts);
 
-    // Capture outputs
-    core.setOutput('imageFullName', imageFullName);
-    core.setOutput('imageName', image);
-    core.setOutput('tags', buildOpts.tags.join(','));
-  } catch (error) {
-    core.setFailed(error.message);
-  }
+        // Capture outputs
+        core.setOutput('imageFullName', imageFullName);
+        core.setOutput('imageName', image);
+        core.setOutput('tags', buildOpts.tags.join(','));
+    } catch (error) {
+        core.setFailed(error.message);
+    }
 };
 
 module.exports = run;
@@ -10126,87 +10137,87 @@ const GITHUB_REGISTRY_URLS = ['docker.pkg.github.com', 'ghcr.io'];
 
 // Create the full Docker image name with registry prefix (without tags)
 const createFullImageName = (registry, image, githubOwner) => {
-  if (GITHUB_REGISTRY_URLS.includes(registry)) {
-    return `${registry}/${githubOwner.toLowerCase()}/${image}`;
-  }
-  return `${registry}/${image}`;
+    if (GITHUB_REGISTRY_URLS.includes(registry)) {
+        return `${registry}/${githubOwner.toLowerCase()}/${image}`;
+    }
+    return `${registry}/${image}`;
 };
 
 // Create Docker tags based on input flags & Git branch
 const createTags = (addLatest, addTimestamp) => {
-  core.info('Creating Docker image tags...');
-  const { sha } = context;
-  const ref = context.ref.toLowerCase();
-  const shortSha = sha.substring(0, 7);
-  const dockerTags = [];
+    core.info('Creating Docker image tags...');
+    const { sha } = context;
+    const ref = context.ref.toLowerCase();
+    const shortSha = sha.substring(0, 7);
+    const dockerTags = [];
 
-  if (isGitHubTag(ref)) {
-    // If GitHub tag exists, use it as the Docker tag
-    const tag = ref.replace('refs/tags/', '');
-    dockerTags.push(tag);
-  } else if (isBranch(ref)) {
-    // If we're not building a tag, use branch-prefix-{GIT_SHORT_SHA) as the Docker tag
-    // refs/heads/jira-123/feature/something
-    const branchName = ref.replace('refs/heads/', '');
-    const safeBranchName = branchName
-      .replace(/[^\w.-]+/g, '-')
-      .replace(/^[^\w]+/, '')
-      .substring(0, 120);
-    const baseTag = `${safeBranchName}-${shortSha}`;
-    const tag = addTimestamp ? `${baseTag}-${timestamp()}` : baseTag;
-    dockerTags.push(tag);
-  } else {
-    core.setFailed(
-      'Unsupported GitHub event - only supports push https://help.github.com/en/articles/events-that-trigger-workflows#push-event-push'
-    );
-  }
+    if (isGitHubTag(ref)) {
+        // If GitHub tag exists, use it as the Docker tag
+        const tag = ref.replace('refs/tags/', '');
+        dockerTags.push(tag);
+    } else if (isBranch(ref)) {
+        // If we're not building a tag, use branch-prefix-{GIT_SHORT_SHA) as the Docker tag
+        // refs/heads/jira-123/feature/something
+        const branchName = ref.replace('refs/heads/', '');
+        const safeBranchName = branchName
+            .replace(/[^\w.-]+/g, '-')
+            .replace(/^[^\w]+/, '')
+            .substring(0, 120);
+        const baseTag = `${safeBranchName}-${shortSha}`;
+        const tag = addTimestamp ? `${baseTag}-${timestamp()}` : baseTag;
+        dockerTags.push(tag);
+    } else {
+        core.setFailed(
+            'Unsupported GitHub event - only supports push https://help.github.com/en/articles/events-that-trigger-workflows#push-event-push'
+        );
+    }
 
-  if (addLatest) {
-    dockerTags.push('latest');
-  }
+    if (addLatest) {
+        dockerTags.push('latest');
+    }
 
-  core.info(`Docker tags created: ${dockerTags}`);
-  return dockerTags;
+    core.info(`Docker tags created: ${dockerTags}`);
+    return dockerTags;
 };
 
 // Dynamically create 'docker build' command based on inputs provided
 const createBuildCommand = (imageName, dockerfile, buildOpts) => {
-  const tagsSuffix = buildOpts.tags.map(tag => `-t ${imageName}:${tag}`).join(' ');
-  let buildCommandPrefix = `docker build -f ${dockerfile} ${tagsSuffix}`;
+    const tagsSuffix = buildOpts.tags.map(tag => `-t ${imageName}:${tag}`).join(' ');
+    let buildCommandPrefix = `docker build -f ${dockerfile} ${tagsSuffix}`;
 
-  if (buildOpts.buildArgs) {
-    const argsSuffix = buildOpts.buildArgs.map(arg => `--build-arg ${arg}`).join(' ');
-    buildCommandPrefix = `${buildCommandPrefix} ${argsSuffix}`;
-  }
+    if (buildOpts.buildArgs) {
+        const argsSuffix = buildOpts.buildArgs.map(arg => `--build-arg ${arg}`).join(' ');
+        buildCommandPrefix = `${buildCommandPrefix} ${argsSuffix}`;
+    }
 
-  if (buildOpts.labels) {
-    const labelsSuffix = buildOpts.labels.map(label => `--label ${label}`).join(' ');
-    buildCommandPrefix = `${buildCommandPrefix} ${labelsSuffix}`;
-  }
+    if (buildOpts.labels) {
+        const labelsSuffix = buildOpts.labels.map(label => `--label ${label}`).join(' ');
+        buildCommandPrefix = `${buildCommandPrefix} ${labelsSuffix}`;
+    }
 
-  if (buildOpts.target) {
-    buildCommandPrefix = `${buildCommandPrefix} --target ${buildOpts.target}`;
-  }
+    if (buildOpts.target) {
+        buildCommandPrefix = `${buildCommandPrefix} --target ${buildOpts.target}`;
+    }
 
-  if (buildOpts.platform) {
-    buildCommandPrefix = `${buildCommandPrefix} --platform ${buildOpts.platform}`;
-  }
+    if (buildOpts.platform) {
+        buildCommandPrefix = `${buildCommandPrefix} --platform ${buildOpts.platform}`;
+    }
 
-  if (buildOpts.enableBuildKit) {
-    buildCommandPrefix = `DOCKER_BUILDKIT=1 ${buildCommandPrefix}`;
-  }
+    if (buildOpts.enableBuildKit) {
+        buildCommandPrefix = `DOCKER_BUILDKIT=1 ${buildCommandPrefix}`;
+    }
 
-  return `${buildCommandPrefix} ${buildOpts.buildDir}`;
+    return `${buildCommandPrefix} ${buildOpts.buildDir}`;
 };
 
 // Perform 'docker build' command
 const build = (imageName, dockerfile, buildOpts) => {
-  if (!fs.existsSync(dockerfile)) {
-    core.setFailed(`Dockerfile does not exist in location ${dockerfile}`);
-  }
+    if (!fs.existsSync(dockerfile)) {
+        core.setFailed(`Dockerfile does not exist in location ${dockerfile}`);
+    }
 
-  core.info(`Building Docker image ${imageName} with tags ${buildOpts.tags}...`);
-  cp.execSync(createBuildCommand(imageName, dockerfile, buildOpts), cpOptions);
+    core.info(`Building Docker image ${imageName} with tags ${buildOpts.tags}...`);
+    cp.execSync(createBuildCommand(imageName, dockerfile, buildOpts), cpOptions);
 };
 
 const isEcr = registry => registry && registry.includes('amazonaws');
@@ -10214,46 +10225,62 @@ const isEcr = registry => registry && registry.includes('amazonaws');
 const getRegion = registry => registry.substring(registry.indexOf('ecr.') + 4, registry.indexOf('.amazonaws'));
 
 // Log in to provided Docker registry
-const login = (username, password, registry, skipPush) => {
-  if (skipPush) {
-    core.info('Input skipPush is set to true, skipping Docker log in step...');
-    return;
-  }
+const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => {
+    if (skipPush) {
+        core.info('Input skipPush is set to true, skipping Docker log in step...');
+        return;
+    }
 
-  // If using ECR, use the AWS CLI login command in favor of docker login
-  if (isEcr(registry)) {
-    const region = getRegion(registry);
-    core.info(`Logging into ECR region ${region}...`);
-    cp.execSync(
-      `aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}`
-    );
-  } else if (username && password) {
-    core.info(`Logging into Docker registry ${registry}...`);
-    cp.execSync(`docker login -u ${username} --password-stdin ${registry}`, {
-      input: password
-    });
-  } else {
-    core.setFailed('Must supply Docker registry credentials to push image!');
-  }
+    // If using ECR, use the AWS CLI login command in favor of docker login
+    if (isEcr(registry)) {
+        const region = getRegion(registry);
+        core.info(`Logging into ECR region ${region}...`);
+        cp.execSync(
+            `aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}`
+        );
+    } else if (username && password) {
+        core.info(`Logging into Docker registry ${registry}...`);
+        try {
+            cp.execSync(`docker login -u ${username} --password-stdin ${registry}`, {
+                input: password
+            });
+        } catch (error) {
+            core.info(`Failed to Logging into Docker registry ${registry}: ${error.message}`);
+            if (maxRetryAttempts > 0) {
+                core.info(`Retry to Logging into Docker registry ${registry}...`);
+                login(username, password, registry, skipPush, maxRetryAttempts - 1)
+            }
+        }
+    } else {
+        core.setFailed('Must supply Docker registry credentials to push image!');
+    }
 };
 
 // Push Docker image & all tags
-const push = (imageName, tags, skipPush) => {
-  if (skipPush) {
-    core.info('Input skipPush is set to true, skipping Docker push step...');
-    return;
-  }
+const push = (imageName, tags, skipPush, maxRetryAttempts = 1) => {
+    if (skipPush) {
+        core.info('Input skipPush is set to true, skipping Docker push step...');
+        return;
+    }
 
-  core.info(`Pushing tags ${tags} for Docker image ${imageName}...`);
-  cp.execSync(`docker push ${imageName} --all-tags`, cpOptions);
+    try {
+        core.info(`Pushing tags ${tags} for Docker image ${imageName}...`);
+        cp.execSync(`docker push ${imageName} --all-tags`, cpOptions);
+    } catch (error) {
+        core.info(`Failed to Pushing tags ${tags} for Docker image ${imageName}...: ${error.message}`);
+        if (maxRetryAttempts > 0) {
+            core.info(`Retry to Pushing tags ${tags} for Docker image ${imageName}`);
+            push(imageName, tags, skipPush, maxRetryAttempts - 1)
+        }
+    }
 };
 
 module.exports = {
-  createFullImageName,
-  createTags,
-  build,
-  login,
-  push
+    createFullImageName,
+    createTags,
+    build,
+    login,
+    push
 };
 
 

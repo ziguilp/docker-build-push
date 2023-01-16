@@ -55,6 +55,10 @@ inputs:
     description: "Flag for disabling the login & push steps, set to true by default"
     required: false
     default: "true"
+  maxRetryAttempts:
+    description: "Number of automatic retries when an error occurs"
+    required: false
+    default: 0
 outputs:
   imageFullName:
     description: "Full name of the Docker image with registry prefix and tag suffix"
