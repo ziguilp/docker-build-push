@@ -1,6 +1,6 @@
-name: "Docker Build & Push Action"
+name: "Docker Build & Push Action & Auto Retry when error occured"
 description: "Builds a Docker image and pushes to a private registry with support for multiple tags"
-author: "Sean Smith"
+author: "Sean Smith & turbo"
 inputs:
   image:
     description: "Name of the Docker image"
