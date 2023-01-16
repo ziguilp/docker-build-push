@@ -10057,7 +10057,7 @@ function wrappy (fn, cb) {
  * @Author        : turbo 664120459@qq.com
  * @Date          : 2023-01-16 09:01:56
  * @LastEditors   : turbo 664120459@qq.com
- * @LastEditTime  : 2023-01-16 09:14:37
+ * @LastEditTime  : 2023-01-16 10:07:03
  * @FilePath      : /docker-build-push/src/docker-build-push.js
  * @Description   : forked from mr-smithers-excellent/docker-build-push
  * 
@@ -10079,7 +10079,7 @@ const buildOpts = {
     skipPush: false
 };
 
-const run = () => {
+const run = async () => {
     try {
         // Capture action inputs
         const image = core.getInput('image', { required: true });
@@ -10091,6 +10091,9 @@ const run = () => {
         const addLatest = core.getInput('addLatest') === 'true';
         const addTimestamp = core.getInput('addTimestamp') === 'true';
         const maxRetryAttempts = core.getInput('maxRetryAttempts') || 0;
+        let retryDelaySeconds = core.getInput('retryDelaySeconds') || 0;
+        retryDelaySeconds = retryDelaySeconds >= 0 ? retryDelaySeconds : 0;
+
         buildOpts.tags = parseArray(core.getInput('tags')) || docker.createTags(addLatest, addTimestamp);
         buildOpts.buildArgs = parseArray(core.getInput('buildArgs'));
         buildOpts.labels = parseArray(core.getInput('labels'));
@@ -10105,9 +10108,9 @@ const run = () => {
         core.info(`Docker image name used for this build: ${imageFullName}`);
 
         // Log in, build & push the Docker image
-        docker.login(username, password, registry, buildOpts.skipPush, maxRetryAttempts);
-        docker.build(imageFullName, dockerfile, buildOpts);
-        docker.push(imageFullName, buildOpts.tags, buildOpts.skipPush, maxRetryAttempts);
+        await docker.login(username, password, registry, buildOpts.skipPush, maxRetryAttempts, retryDelaySeconds);
+        await docker.build(imageFullName, dockerfile, buildOpts);
+        await docker.push(imageFullName, buildOpts.tags, buildOpts.skipPush, maxRetryAttempts, retryDelaySeconds);
 
         // Capture outputs
         core.setOutput('imageFullName', imageFullName);
@@ -10131,7 +10134,7 @@ const core = __nccwpck_require__(2186);
 const fs = __nccwpck_require__(7147);
 const { context } = __nccwpck_require__(5438);
 const { isGitHubTag, isBranch } = __nccwpck_require__(8396);
-const { timestamp, cpOptions } = __nccwpck_require__(1608);
+const { timestamp, cpOptions, sleep } = __nccwpck_require__(1608);
 
 const GITHUB_REGISTRY_URLS = ['docker.pkg.github.com', 'ghcr.io'];
 
@@ -10211,7 +10214,7 @@ const createBuildCommand = (imageName, dockerfile, buildOpts) => {
 };
 
 // Perform 'docker build' command
-const build = (imageName, dockerfile, buildOpts) => {
+const build = async (imageName, dockerfile, buildOpts) => {
     if (!fs.existsSync(dockerfile)) {
         core.setFailed(`Dockerfile does not exist in location ${dockerfile}`);
     }
@@ -10225,7 +10228,7 @@ const isEcr = registry => registry && registry.includes('amazonaws');
 const getRegion = registry => registry.substring(registry.indexOf('ecr.') + 4, registry.indexOf('.amazonaws'));
 
 // Log in to provided Docker registry
-const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => {
+const login = async (username, password, registry, skipPush, maxRetryAttempts = 1, retryDelaySeconds = 1) => {
     if (skipPush) {
         core.info('Input skipPush is set to true, skipping Docker log in step...');
         return;
@@ -10248,7 +10251,10 @@ const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => 
             core.info(`Failed to Logging into Docker registry ${registry}: ${error.message}`);
             if (maxRetryAttempts > 0) {
                 core.info(`Retry to Logging into Docker registry ${registry}...`);
-                login(username, password, registry, skipPush, maxRetryAttempts - 1)
+                await sleep(retryDelaySeconds * 1000);
+                await login(username, password, registry, skipPush, maxRetryAttempts - 1, retryDelaySeconds);
+            } else {
+                core.setFailed(error);
             }
         }
     } else {
@@ -10257,7 +10263,7 @@ const login = (username, password, registry, skipPush, maxRetryAttempts = 1) => 
 };
 
 // Push Docker image & all tags
-const push = (imageName, tags, skipPush, maxRetryAttempts = 1) => {
+const push = async (imageName, tags, skipPush, maxRetryAttempts = 1, retryDelaySeconds = 1) => {
     if (skipPush) {
         core.info('Input skipPush is set to true, skipping Docker push step...');
         return;
@@ -10270,7 +10276,10 @@ const push = (imageName, tags, skipPush, maxRetryAttempts = 1) => {
         core.info(`Failed to Pushing tags ${tags} for Docker image ${imageName}...: ${error.message}`);
         if (maxRetryAttempts > 0) {
             core.info(`Retry to Pushing tags ${tags} for Docker image ${imageName}`);
-            push(imageName, tags, skipPush, maxRetryAttempts - 1)
+            await sleep(retryDelaySeconds * 1000);
+            await push(imageName, tags, skipPush, maxRetryAttempts - 1, retryDelaySeconds)
+        } else {
+            core.setFailed(error);
         }
     }
 };
@@ -10321,26 +10330,45 @@ module.exports = {
 /***/ 1608:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
+/*
+ * @Author        : turbo 664120459@qq.com
+ * @Date          : 2023-01-16 09:01:56
+ * @LastEditors   : turbo 664120459@qq.com
+ * @LastEditTime  : 2023-01-16 10:01:15
+ * @FilePath      : /docker-build-push/src/utils.js
+ * @Description   : 
+ * 
+ * Copyright (c) 2023 by turbo 664120459@qq.com, All Rights Reserved. 
+ */
 const dateFormat = __nccwpck_require__(1512);
 
 const timestamp = () => dateFormat(new Date(), 'yyyy-mm-dd.HHMMss');
 
 const parseArray = commaDelimitedString => {
-  if (commaDelimitedString) {
-    return commaDelimitedString.split(',').map(value => value.trim());
-  }
-  return undefined;
+    if (commaDelimitedString) {
+        return commaDelimitedString.split(',').map(value => value.trim());
+    }
+    return undefined;
 };
 
+const sleep = (time = 1000) => {
+    return new Promise((reslove, reject) => {
+        setTimeout(() => {
+            reslove(true)
+        }, time)
+    })
+}
+
 const cpOptions = {
-  maxBuffer: 50 * 1024 * 1024,
-  stdio: 'inherit'
+    maxBuffer: 50 * 1024 * 1024,
+    stdio: 'inherit'
 };
 
 module.exports = {
-  timestamp,
-  parseArray,
-  cpOptions
+    timestamp,
+    parseArray,
+    cpOptions,
+    sleep
 };
 
 
