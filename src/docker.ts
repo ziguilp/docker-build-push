@@ -2,7 +2,7 @@
  * @Author        : turbo 664120459@qq.com
  * @Date          : 2023-01-16 09:01:56
  * @LastEditors   : turbo 664120459@qq.com
- * @LastEditTime  : 2023-01-17 12:19:31
+ * @LastEditTime  : 2023-01-17 12:44:13
  * @FilePath      : /docker-build-push/src/docker.ts
  * @Description   : 
  * 
@@ -30,7 +30,11 @@ export interface ImageBuildOption {
     /**
      * 是否自动添加时间戳的标签
      */
-    addTimestamp: boolean;
+    addTimestamp?: boolean;
+    /**
+     * 是否自动添加github tag的标签
+     */
+    addGithubTag?: boolean;
     /**
      * 镜像名称
      */
@@ -130,6 +134,7 @@ export class DockerService {
             skipPush: false,
             addTimestamp: false,
             addLatest: false,
+            addGithubTag: false,
             dockerFile: undefined
         };
 
@@ -180,23 +185,26 @@ export class DockerService {
         const shortSha = sha.substring(0, 7);
         const dockerTags: string[] = [];
 
-        if (isGitHubTag(ref)) {
-            // If GitHub tag exists, use it as the Docker tag
-            const tag = ref.replace('refs/tags/', '');
-            dockerTags.push(tag);
-        } else if (isBranch(ref)) {
-            // If we're not building a tag, use branch-prefix-{GIT_SHORT_SHA) as the Docker tag
-            // refs/heads/jira-123/feature/something
-            const branchName = ref.replace('refs/heads/', '');
-            const safeBranchName = branchName
-                .replace(/[^\w.-]+/g, '-')
-                .replace(/^[^\w]+/, '')
-                .substring(0, 120);
-            const baseTag = `${safeBranchName}-${shortSha}`;
-            const tag = this.buildOpt.addTimestamp ? `${baseTag}-${timestamp()}` : baseTag;
-            dockerTags.push(tag);
-        } else {
-            throw new Error('Unsupported GitHub event - only supports push https://help.github.com/en/articles/events-that-trigger-workflows#push-event-push')
+        // 当未设置标签的时候尝试设置标签
+        if (!this.buildOpt.tags || this.buildOpt.tags.length < 1 || this.buildOpt.addGithubTag) {
+            if (isGitHubTag(ref)) {
+                // If GitHub tag exists, use it as the Docker tag
+                const tag = ref.replace('refs/tags/', '');
+                dockerTags.push(tag);
+            } else if (isBranch(ref)) {
+                // If we're not building a tag, use branch-prefix-{GIT_SHORT_SHA) as the Docker tag
+                // refs/heads/jira-123/feature/something
+                const branchName = ref.replace('refs/heads/', '');
+                const safeBranchName = branchName
+                    .replace(/[^\w.-]+/g, '-')
+                    .replace(/^[^\w]+/, '')
+                    .substring(0, 120);
+                const baseTag = `${safeBranchName}-${shortSha}`;
+                const tag = this.buildOpt.addTimestamp ? `${baseTag}-${timestamp()}` : baseTag;
+                dockerTags.push(tag);
+            } else {
+                throw new Error('Unsupported GitHub event - only supports push https://help.github.com/en/articles/events-that-trigger-workflows#push-event-push')
+            }
         }
 
         if (this.buildOpt.addLatest) {
