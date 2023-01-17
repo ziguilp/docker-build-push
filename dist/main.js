@@ -3,7 +3,7 @@
  * @Author        : turbo 664120459@qq.com
  * @Date          : 2023-01-16 09:01:56
  * @LastEditors   : turbo 664120459@qq.com
- * @LastEditTime  : 2023-01-17 11:12:40
+ * @LastEditTime  : 2023-01-17 12:23:11
  * @FilePath      : /docker-build-push/src/main.ts
  * @Description   : forked from mr-smithers-excellent/docker-build-push
  *
@@ -43,51 +43,61 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(require("@actions/core"));
-const docker = __importStar(require("./docker"));
-const github = __importStar(require("./github"));
+const docker_1 = require("./docker");
 const utils_1 = require("./utils");
 const buildOpts = {
-    tags: undefined,
+    imageName: '',
+    tags: [],
     buildArgs: undefined,
     labels: undefined,
     target: undefined,
     buildDir: undefined,
     enableBuildKit: false,
     platform: undefined,
-    skipPush: false
+    skipPush: false,
+    addTimestamp: false,
+    addLatest: false,
+    dockerFile: undefined
 };
 (() => __awaiter(void 0, void 0, void 0, function* () {
     // Capture action inputs
-    const image = core.getInput('image', { required: true });
     const registry = core.getInput('registry', { required: true });
+    const image = core.getInput('image', { required: true });
     const username = core.getInput('username');
     const password = core.getInput('password');
-    const dockerfile = core.getInput('dockerfile');
-    const githubOwner = core.getInput('githubOrg') || github.getDefaultOwner();
-    const addLatest = core.getInput('addLatest') === 'true';
-    const addTimestamp = core.getInput('addTimestamp') === 'true';
-    const maxRetryAttempts = Number(core.getInput('maxRetryAttempts') || 0);
-    let retryDelaySeconds = Number(core.getInput('retryDelaySeconds') || 0);
-    retryDelaySeconds = retryDelaySeconds >= 0 ? retryDelaySeconds : 0;
-    buildOpts.tags = (0, utils_1.parseArray)(core.getInput('tags')) || docker.createTags(addLatest, addTimestamp);
-    buildOpts.buildArgs = (0, utils_1.parseArray)(core.getInput('buildArgs'));
-    buildOpts.labels = (0, utils_1.parseArray)(core.getInput('labels'));
-    buildOpts.target = core.getInput('target');
-    buildOpts.buildDir = core.getInput('directory') || '.';
-    buildOpts.enableBuildKit = core.getInput('enableBuildKit') === 'true';
-    buildOpts.platform = core.getInput('platform');
-    buildOpts.skipPush = core.getInput('pushImage') === 'false';
+    const docker = new docker_1.DockerService(registry, username && password ? {
+        username,
+        password
+    } : undefined);
+    docker.setBuildOption({
+        imageName: docker.createFullImageName(image),
+        tags: (0, utils_1.parseArray)(core.getInput('tags')) || [],
+        buildArgs: (0, utils_1.parseArray)(core.getInput('buildArgs')),
+        labels: (0, utils_1.parseArray)(core.getInput('labels')),
+        target: core.getInput('target'),
+        buildDir: core.getInput('directory') || '.',
+        enableBuildKit: core.getInput('enableBuildKit') === 'true',
+        platform: core.getInput('platform'),
+        skipPush: core.getInput('pushImage') === 'false',
+        addTimestamp: core.getInput('addTimestamp') === 'true',
+        addLatest: core.getInput('addLatest') === 'true',
+        dockerFile: core.getInput('dockerfile')
+    });
+    docker.setRetryOption({
+        maxRetryAttempts: Number(core.getInput('maxRetryAttempts') || 0),
+        retryDelaySeconds: Number(core.getInput('retryDelaySeconds') || 0),
+    });
+    docker.createTags();
     // Create the Docker image name
-    const imageFullName = docker.createFullImageName(registry, image, githubOwner);
-    core.info(`Docker image name used for this build: ${imageFullName}`);
+    core.info(`Docker image name used for this build: ${docker.buildOpt.imageName}`);
     // Log in, build & push the Docker image
-    yield docker.login(username, password, registry, buildOpts.skipPush, maxRetryAttempts, retryDelaySeconds);
-    yield docker.build(imageFullName, dockerfile, buildOpts);
-    yield docker.push(imageFullName, buildOpts.tags, buildOpts.skipPush, maxRetryAttempts, retryDelaySeconds);
+    yield docker.login();
+    yield docker.build();
+    yield docker.push();
     // Capture outputs
-    core.setOutput('imageFullName', imageFullName);
+    core.setOutput('imageFullName', docker.buildOpt.imageName);
     core.setOutput('imageName', image);
-    core.setOutput('tags', buildOpts.tags.join(','));
+    core.setOutput('tags', docker.buildOpt.tags.join(','));
 }))().catch(error => {
     core.setFailed(error.message);
 });
