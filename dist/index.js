@@ -321,7 +321,7 @@ exports.getDefaultOwner = getDefaultOwner;
  * @Author        : turbo 664120459@qq.com
  * @Date          : 2023-01-16 09:01:56
  * @LastEditors   : turbo 664120459@qq.com
- * @LastEditTime  : 2023-01-17 12:23:11
+ * @LastEditTime  : 2023-01-17 12:49:45
  * @FilePath      : /docker-build-push/src/main.ts
  * @Description   : forked from mr-smithers-excellent/docker-build-push
  *
@@ -399,6 +399,7 @@ const buildOpts = {
         skipPush: core.getInput('pushImage') === 'false',
         addTimestamp: core.getInput('addTimestamp') === 'true',
         addLatest: core.getInput('addLatest') === 'true',
+        addGithubTag: core.getInput('addGithubTag') === 'true',
         dockerFile: core.getInput('dockerfile')
     });
     docker.setRetryOption({

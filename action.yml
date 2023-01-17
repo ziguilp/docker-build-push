@@ -47,6 +47,10 @@ inputs:
     description: "Suffixes a build timestamp to the branch-based Docker tag"
     required: false
     default: "false"
+  addGithubTag:
+    description: "set docker tag same as github tag"
+    required: false
+    default: "false"
   enableBuildKit:
     description: "Enables Docker BuildKit support"
     required: false
