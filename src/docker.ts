@@ -2,7 +2,7 @@
  * @Author        : turbo 664120459@qq.com
  * @Date          : 2023-01-16 09:01:56
  * @LastEditors   : turbo 664120459@qq.com
- * @LastEditTime  : 2023-01-17 13:43:43
+ * @LastEditTime  : 2023-01-17 13:59:40
  * @FilePath      : /docker-build-push/src/docker.ts
  * @Description   : 
  * 
@@ -283,9 +283,9 @@ export class DockerService {
             core.info(`Logging into Docker registry ${this.registry}...`);
             try {
 
-                const extOpt = this.retryLog.loginRetryTimes > 0 ? '--tlsverify=false' : '';
+                const extOpt = this.retryLog.loginRetryTimes > 0 ? '--tls=false' : '';
 
-                cp.execSync(`docker login ${extOpt} -u ${this.authencation.username} --password-stdin ${this.registry}`, {
+                cp.execSync(`docker ${extOpt} login -u ${this.authencation.username} --password-stdin ${this.registry}`, {
                     input: this.authencation.password
                 });
                 core.info('Docker logined registry sucessfully...');
@@ -316,9 +316,9 @@ export class DockerService {
         try {
             core.info(`Pushing tags ${this.buildOpt.tags} for Docker image ${this.buildOpt.imageName}...`);
 
-            const extOpt = this.retryLog.loginRetryTimes > 0 || this.retryLog.pushRetryTimes > 0 ? '--tlsverify=false' : '';
+            const extOpt = this.retryLog.loginRetryTimes > 0 || this.retryLog.pushRetryTimes > 0 ? '--tls=false' : '';
 
-            cp.execSync(`docker push ${this.buildOpt.imageName} --all-tags ${extOpt}`);
+            cp.execSync(`docker ${extOpt} push ${this.buildOpt.imageName} --all-tags`);
         } catch (error) {
             core.info(`Failed to Pushing tags ${this.buildOpt.tags} for Docker image ${this.buildOpt.imageName}...: ${error}`);
             if (autoRetry && this.retryOpt.maxRetryAttempts > 0 && this.retryLog.pushRetryTimes < this.retryOpt.maxRetryAttempts) {
