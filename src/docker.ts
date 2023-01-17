@@ -1,27 +1,43 @@
-const cp = require('child_process');
-const core = require('@actions/core');
-const fs = require('fs');
-const { context } = require('@actions/github');
-const { isGitHubTag, isBranch } = require('./github');
-const { timestamp, cpOptions, sleep } = require('./utils');
+/*
+ * @Author        : turbo 664120459@qq.com
+ * @Date          : 2023-01-16 09:01:56
+ * @LastEditors   : turbo 664120459@qq.com
+ * @LastEditTime  : 2023-01-17 11:11:36
+ * @FilePath      : /docker-build-push/src/docker.ts
+ * @Description   : 
+ * 
+ * Copyright (c) 2023 by turbo 664120459@qq.com, All Rights Reserved. 
+ */
+import cp from 'child_process';
+import * as core from '@actions/core';
+import fs from 'fs';
+import { context } from '@actions/github';
+import { isGitHubTag, isBranch } from './github';
+import { timestamp, cpOptions, sleep } from './utils';
 
 const GITHUB_REGISTRY_URLS = ['docker.pkg.github.com', 'ghcr.io'];
 
-// Create the full Docker image name with registry prefix (without tags)
-const createFullImageName = (registry, image, githubOwner) => {
+/**
+ * Create the full Docker image name with registry prefix (without tags) 
+ * @returns `${registry}/${image}`;
+ */
+export const createFullImageName = (registry, image, githubOwner) => {
     if (GITHUB_REGISTRY_URLS.includes(registry)) {
         return `${registry}/${githubOwner.toLowerCase()}/${image}`;
     }
     return `${registry}/${image}`;
 };
 
-// Create Docker tags based on input flags & Git branch
-const createTags = (addLatest, addTimestamp) => {
+/**
+ * Create Docker tags based on input flags & Git branch 
+ *
+ */
+export const createTags = (addLatest: boolean, addTimestamp: boolean) => {
     core.info('Creating Docker image tags...');
     const { sha } = context;
     const ref = context.ref.toLowerCase();
     const shortSha = sha.substring(0, 7);
-    const dockerTags = [];
+    const dockerTags: string[] = [];
 
     if (isGitHubTag(ref)) {
         // If GitHub tag exists, use it as the Docker tag
@@ -39,9 +55,7 @@ const createTags = (addLatest, addTimestamp) => {
         const tag = addTimestamp ? `${baseTag}-${timestamp()}` : baseTag;
         dockerTags.push(tag);
     } else {
-        core.setFailed(
-            'Unsupported GitHub event - only supports push https://help.github.com/en/articles/events-that-trigger-workflows#push-event-push'
-        );
+        throw new Error('Unsupported GitHub event - only supports push https://help.github.com/en/articles/events-that-trigger-workflows#push-event-push')
     }
 
     if (addLatest) {
@@ -52,18 +66,20 @@ const createTags = (addLatest, addTimestamp) => {
     return dockerTags;
 };
 
-// Dynamically create 'docker build' command based on inputs provided
-const createBuildCommand = (imageName, dockerfile, buildOpts) => {
-    const tagsSuffix = buildOpts.tags.map(tag => `-t ${imageName}:${tag}`).join(' ');
+/**
+ * Dynamically create 'docker build' command based on inputs provided
+ */
+export const createBuildCommand = (imageName: string, dockerfile: string, buildOpts: any) => {
+    const tagsSuffix = buildOpts.tags.map((tag: string) => `-t ${imageName}:${tag}`).join(' ');
     let buildCommandPrefix = `docker build -f ${dockerfile} ${tagsSuffix}`;
 
     if (buildOpts.buildArgs) {
-        const argsSuffix = buildOpts.buildArgs.map(arg => `--build-arg ${arg}`).join(' ');
+        const argsSuffix = buildOpts.buildArgs.map((arg: string) => `--build-arg ${arg}`).join(' ');
         buildCommandPrefix = `${buildCommandPrefix} ${argsSuffix}`;
     }
 
     if (buildOpts.labels) {
-        const labelsSuffix = buildOpts.labels.map(label => `--label ${label}`).join(' ');
+        const labelsSuffix = buildOpts.labels.map((label: string) => `--label ${label}`).join(' ');
         buildCommandPrefix = `${buildCommandPrefix} ${labelsSuffix}`;
     }
 
@@ -83,21 +99,21 @@ const createBuildCommand = (imageName, dockerfile, buildOpts) => {
 };
 
 // Perform 'docker build' command
-const build = async (imageName, dockerfile, buildOpts) => {
+export const build = async (imageName: string, dockerfile: string, buildOpts: any) => {
     if (!fs.existsSync(dockerfile)) {
-        core.setFailed(`Dockerfile does not exist in location ${dockerfile}`);
+        throw new Error(`Dockerfile does not exist in location ${dockerfile}`);
     }
 
     core.info(`Building Docker image ${imageName} with tags ${buildOpts.tags}...`);
-    cp.execSync(createBuildCommand(imageName, dockerfile, buildOpts), cpOptions);
+    cp.execSync(createBuildCommand(imageName, dockerfile, buildOpts));
 };
 
-const isEcr = registry => registry && registry.includes('amazonaws');
+export const isEcr = (registry: string) => registry && registry.includes('amazonaws');
 
-const getRegion = registry => registry.substring(registry.indexOf('ecr.') + 4, registry.indexOf('.amazonaws'));
+export const getRegion = (registry: string) => registry.substring(registry.indexOf('ecr.') + 4, registry.indexOf('.amazonaws'));
 
 // Log in to provided Docker registry
-const login = async (username, password, registry, skipPush, maxRetryAttempts = 1, retryDelaySeconds = 1) => {
+export const login = async (username: string, password: string, registry: string, skipPush: boolean, maxRetryAttempts: number = 1, retryDelaySeconds: number = 1) => {
     if (skipPush) {
         core.info('Input skipPush is set to true, skipping Docker log in step...');
         return;
@@ -117,22 +133,24 @@ const login = async (username, password, registry, skipPush, maxRetryAttempts = 
                 input: password
             });
         } catch (error) {
-            core.info(`Failed to Logging into Docker registry ${registry}: ${error.message}`);
+            core.info(`Failed to Logging into Docker registry ${registry}: ${error}`);
             if (maxRetryAttempts > 0) {
                 core.info(`Retry to Logging into Docker registry ${registry}...`);
                 await sleep(retryDelaySeconds * 1000);
                 await login(username, password, registry, skipPush, maxRetryAttempts - 1, retryDelaySeconds);
             } else {
-                core.setFailed(error);
+                throw error;
             }
         }
     } else {
-        core.setFailed('Must supply Docker registry credentials to push image!');
+        throw new Error('Must supply Docker registry credentials to push image!');
     }
 };
 
-// Push Docker image & all tags
-const push = async (imageName, tags, skipPush, maxRetryAttempts = 1, retryDelaySeconds = 1) => {
+/**
+ * Push Docker image & all tags
+ */
+export const push = async (imageName: string, tags: string, skipPush: boolean, maxRetryAttempts: number = 1, retryDelaySeconds: number = 1) => {
     if (skipPush) {
         core.info('Input skipPush is set to true, skipping Docker push step...');
         return;
@@ -140,23 +158,15 @@ const push = async (imageName, tags, skipPush, maxRetryAttempts = 1, retryDelayS
 
     try {
         core.info(`Pushing tags ${tags} for Docker image ${imageName}...`);
-        cp.execSync(`docker push ${imageName} --all-tags`, cpOptions);
+        cp.execSync(`docker push ${imageName} --all-tags`);
     } catch (error) {
-        core.info(`Failed to Pushing tags ${tags} for Docker image ${imageName}...: ${error.message}`);
+        core.info(`Failed to Pushing tags ${tags} for Docker image ${imageName}...: ${error}`);
         if (maxRetryAttempts > 0) {
             core.info(`Retry to Pushing tags ${tags} for Docker image ${imageName}`);
             await sleep(retryDelaySeconds * 1000);
             await push(imageName, tags, skipPush, maxRetryAttempts - 1, retryDelaySeconds)
         } else {
-            core.setFailed(error);
+            throw error;
         }
     }
-};
-
-module.exports = {
-    createFullImageName,
-    createTags,
-    build,
-    login,
-    push
 };

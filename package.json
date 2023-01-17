@@ -1,56 +1,60 @@
 {
-  "name": "docker-build-push-action",
-  "version": "5.7.0",
-  "description": "Docker Build & Push Action",
-  "main": "src/index.js",
-  "scripts": {
-    "build": "ncc build src/main.js",
-    "precommit": "npm run build && git add dist/",
-    "lint": "eslint 'src/**.js' 'tests/**.js' --fix",
-    "test": "eslint 'src/**.js' 'tests/**.js' && jest --coverage",
-    "test:watch": "npm run test -- --watchAll",
-    "prepare": "husky install"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "npm run precommit"
+    "name": "docker-build-push-action",
+    "version": "1.3",
+    "description": "Docker Build & Push Action",
+    "main": "dist/main.js",
+    "scripts": {
+        "build": "tsc && ncc build",
+        "format": "prettier --write **/*.ts",
+        "format-check": "prettier --check **/*.ts",
+        "test": "jest --coverage",
+        "pre-checkin": "yarn run format && yarn run build"
+    },
+    "husky": {
+        "hooks": {
+            "pre-commit": "npm run precommit"
+        }
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ziguilp/docker-build-push-action.git"
+    },
+    "keywords": [
+        "GitHub",
+        "Actions",
+        "Docker",
+        "GCR",
+        "ECR",
+        "Docker Hub"
+    ],
+    "author": "Turbo",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/ziguilp/docker-build-push-action/issues"
+    },
+    "homepage": "https://github.com/ziguilp/docker-build-push-action#readme",
+    "dependencies": {
+        "@actions/core": "^1.10.0",
+        "@actions/github": "^5.0.0",
+        "dateformat": "^4.6.3",
+        "ncc": "^0.3.6"
+    },
+    "devDependencies": {
+        "@types/dateformat": "^5.0.0",
+        "@types/node": "^14.17.4",
+        "@types/node-fetch": "3.0.3",
+        "@vercel/ncc": "^0.33.3",
+        "eslint": "^7.32.0",
+        "eslint-config-airbnb": "^18.2.1",
+        "eslint-config-prettier": "^8.5.0",
+        "eslint-plugin-import": "^2.25.4",
+        "eslint-plugin-jsx-a11y": "^6.5.1",
+        "eslint-plugin-prettier": "^3.4.1",
+        "eslint-plugin-react": "^7.29.3",
+        "husky": "^7.0.4",
+        "jest": "^27.5.1",
+        "prettier": "^2.5.1",
+        "typescript": "^4.3.4",
+        "typescript-formatter": "^7.2.2"
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mr-smithers-excellent/docker-build-push-action.git"
-  },
-  "keywords": [
-    "GitHub",
-    "Actions",
-    "Docker",
-    "GCR",
-    "ECR",
-    "Docker Hub"
-  ],
-  "author": "Sean Smith",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/mr-smithers-excellent/docker-build-push-action/issues"
-  },
-  "homepage": "https://github.com/mr-smithers-excellent/docker-build-push-action#readme",
-  "dependencies": {
-    "@actions/core": "^1.10.0",
-    "@actions/github": "^5.0.0",
-    "dateformat": "^4.6.3",
-    "ncc": "^0.3.6"
-  },
-  "devDependencies": {
-    "@vercel/ncc": "^0.33.3",
-    "eslint": "^7.32.0",
-    "eslint-config-airbnb": "^18.2.1",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-import": "^2.25.4",
-    "eslint-plugin-jsx-a11y": "^6.5.1",
-    "eslint-plugin-prettier": "^3.4.1",
-    "eslint-plugin-react": "^7.29.3",
-    "husky": "^7.0.4",
-    "jest": "^27.5.1",
-    "prettier": "^2.5.1"
-  }
 }
